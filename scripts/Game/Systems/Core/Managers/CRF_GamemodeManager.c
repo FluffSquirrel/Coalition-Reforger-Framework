@@ -2,7 +2,11 @@ class CRF_GamemodeManagerClass : SCR_BaseGameModeComponentClass {}
 
 class CRF_GamemodeManager : SCR_BaseGameModeComponent
 {
-	const static ResourceName SPECTATOR_RESOURCE = "{59886ECB7BBAF5BC}Prefabs/Characters/CRF_InitialEntity.et";
+	// Spectator resource to use
+	static const ResourceName SPECTATOR_RESOURCE = "{59886ECB7BBAF5BC}Prefabs/Characters/CRF_InitialEntity.et";
+	
+	// Time it takes for players to Init
+	static const int PLAYER_INITILIZATION_TIME = 250;
 	
 	[RplProp()]
 	ref array<int> m_aModerators = {}; 
@@ -21,8 +25,27 @@ class CRF_GamemodeManager : SCR_BaseGameModeComponent
 	protected SCR_GroupsManagerComponent m_GroupsManagerComponent;
 	protected CRF_AdminMenuManager m_AdminMenuManager;
 	
-	// NEVER EVER SPAWN A ENT WITH A PURE 0 WORLD VECTOR OR ELSE I WILL CASTRATE YOU I STG
+	// NEVER EVER SPAWN AN ENT WITH A PURE 0 WORLD VECTOR OR ELSE I WILL CASTRATE YOU I STG - Njpatman
 	static const vector ZERO_SPAWN_VECTOR[4] = { "1 0 0", "0 1 0", "0 0 1", "0 0 0" };
+	
+	//------------------------------------------------------------------------------------------------
+	/**
+	* Get the spectator resource name
+	* @param vectorToCheck vector to check
+	* @return ResourceName of the spectator entity
+	*/
+	static bool IsValidSpawnVector(vector vectorToCheck)
+	{	
+		bool finalcheck = false;
+		bool zeroCheck = (vector.Distance(ZERO_SPAWN_VECTOR[3], vectorToCheck) > 5);
+		bool tenCheck = (vector.Distance("0 10000 0", vectorToCheck) > 5);
+		bool negCheck = (vectorToCheck[1] >= 0);
+		
+		if (zeroCheck && tenCheck && negCheck)
+			finalcheck = true;
+		
+		return finalcheck;
+	}
 	
 	//------------------------------------------------------------------------------------------------
 	/**
@@ -136,7 +159,7 @@ class CRF_GamemodeManager : SCR_BaseGameModeComponent
 	*/
 	void InitilizePlayer(int playerId, vector spawnLocation[4])
 	{
-		if (spawnLocation[3] == vector.Zero && spawnLocation != ZERO_SPAWN_VECTOR)
+		if (!IsValidSpawnVector(spawnLocation[3]) && spawnLocation != ZERO_SPAWN_VECTOR)
 		{
 			Print(string.Format("[CRF ERROR]: %1 DOESN'T HAVE VALID SPAWN VECTOR!", playerId), LogLevel.ERROR);
 			return;
@@ -169,7 +192,7 @@ class CRF_GamemodeManager : SCR_BaseGameModeComponent
 		if (playerCharacter)
 		{
 			AssignFactionToPlayer(playerController, faction);
-			GetGame().GetCallqueue().CallLater(InitilizePlayerCharacter, CRF_Gamemode.PLAYER_INITILIZATION_TIME, false, playerId, playerController, playerCharacter);
+			GetGame().GetCallqueue().CallLater(InitilizePlayerCharacter, CRF_GamemodeManager.PLAYER_INITILIZATION_TIME, false, playerId, playerController, playerCharacter);
 		};
 	}
 	
@@ -226,8 +249,10 @@ class CRF_GamemodeManager : SCR_BaseGameModeComponent
 		// Assignment successful, complete initialization
 		if (playerCharacter.GetPrefabData().GetPrefabName() != GetSpectatorResource())
 			AssignPlayerToGroup(playerId);
+		
+		RplComponent playerRplComp = RplComponent.Cast(playerCharacter.FindComponent(RplComponent));
 
-		CRF_RplBroadcastManager.GetInstance().InitilizePlayerBroadcast(playerId);
+		GetGame().GetCallqueue().CallLater(CRF_RplBroadcastManager.GetInstance().InitilizePlayerBroadcast, PLAYER_INITILIZATION_TIME, false, playerId, playerRplComp.Id());
 	}
 	
 	//------------------------------------------------------------------------------------------------
